@@ -14,10 +14,6 @@
 
 ---
 
-## ⭐ If You Find It Useful, Please Give It a Star!
-
-> Open source is not easy, your Star is my motivation to continue updating 🚀  
-> Join [Telegram Channel](https://t.me/claude_relay_service) for the latest updates
 
 ---
 
