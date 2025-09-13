@@ -1,0 +1,68 @@
+name = "crs-api"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Workers配置
+[env.production]
+name = "crs-api"
+
+# 环境变量
+[env.production.vars]
+NODE_ENV = "production"
+JWT_SECRET = "your-jwt-secret-change-this-in-production"
+ENCRYPTION_KEY = "your-32-character-encryption-key"
+API_KEY_PREFIX = "cr_"
+LOG_LEVEL = "info"
+CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
+CLAUDE_API_VERSION = "2023-06-01"
+CLAUDE_BETA_HEADER = "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14"
+DEFAULT_TOKEN_LIMIT = "1000000"
+WEB_TITLE = "Claude Relay Service"
+
+# D1数据库绑定
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "crs-database"
+database_id = "your-database-id"
+
+# KV存储绑定
+[[env.production.kv_namespaces]]
+binding = "CACHE"
+id = "your-cache-kv-id"
+
+[[env.production.kv_namespaces]]
+binding = "SESSIONS"
+id = "your-sessions-kv-id"
+
+# R2存储绑定
+[[env.production.r2_buckets]]
+binding = "STORAGE"
+bucket_name = "crs-storage"
+
+# 开发环境配置
+[env.development]
+name = "crs-api-dev"
+
+[env.development.vars]
+NODE_ENV = "development"
+JWT_SECRET = "dev-jwt-secret"
+ENCRYPTION_KEY = "dev-32-character-encryption-key"
+LOG_LEVEL = "debug"
+
+[[env.development.d1_databases]]
+binding = "DB"
+database_name = "crs-database-dev"
+database_id = "your-dev-database-id"
+
+[[env.development.kv_namespaces]]
+binding = "CACHE"
+id = "your-dev-cache-kv-id"
+
+[[env.development.kv_namespaces]]
+binding = "SESSIONS"
+id = "your-dev-sessions-kv-id"
+
+[[env.development.r2_buckets]]
+binding = "STORAGE"
+bucket_name = "crs-storage-dev"

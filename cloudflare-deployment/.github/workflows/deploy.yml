@@ -1,0 +1,175 @@
+# GitHub Actions 自动部署工作流
+# 当推送到main分支时自动部署到Cloudflare
+
+name: Deploy to Cloudflare
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  # 代码质量检查
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install Workers dependencies
+      run: |
+        cd cloudflare-deployment/workers
+        npm ci
+
+    - name: Install Pages dependencies
+      run: |
+        cd cloudflare-deployment/pages
+        npm ci
+
+    - name: Lint Workers code
+      run: |
+        cd cloudflare-deployment/workers
+        npm run lint
+
+    - name: Lint Pages code
+      run: |
+        cd cloudflare-deployment/pages
+        npm run lint
+
+    - name: Test Workers
+      run: |
+        cd cloudflare-deployment/workers
+        npm test
+
+  # 部署到开发环境
+  deploy-dev:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    environment: development
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install Wrangler
+      run: npm install -g wrangler
+
+    - name: Install dependencies
+      run: |
+        cd cloudflare-deployment/workers
+        npm ci
+        cd ../pages
+        npm ci
+
+    - name: Deploy Workers to Dev
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        cd cloudflare-deployment/workers
+        wrangler deploy --env development
+
+    - name: Build and Deploy Pages to Dev
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        cd cloudflare-deployment/pages
+        npm run build
+        wrangler pages deploy dist --project-name crs-pages-dev
+
+  # 部署到生产环境
+  deploy-prod:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+
+    - name: Install Wrangler
+      run: npm install -g wrangler
+
+    - name: Install dependencies
+      run: |
+        cd cloudflare-deployment/workers
+        npm ci
+        cd ../pages
+        npm ci
+
+    - name: Run database migrations
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        cd cloudflare-deployment/workers
+        wrangler d1 migrations apply crs-database --remote
+
+    - name: Deploy Workers to Production
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        cd cloudflare-deployment/workers
+        wrangler deploy --env production
+
+    - name: Build and Deploy Pages to Production
+      env:
+        CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      run: |
+        cd cloudflare-deployment/pages
+        npm run build
+        wrangler pages deploy dist --project-name crs-pages
+
+    - name: Notify deployment success
+      if: success()
+      run: |
+        echo "🎉 部署成功！"
+        echo "Workers: https://crs-api.your-subdomain.workers.dev"
+        echo "Pages: https://crs-pages.pages.dev"
+
+  # 安全扫描
+  security-scan:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run security audit
+      run: |
+        cd cloudflare-deployment/workers
+        npm audit --audit-level moderate
+        cd ../pages
+        npm audit --audit-level moderate
+
+    - name: Check for secrets
+      run: |
+        # 检查是否有硬编码的密钥
+        if grep -r "sk-\|pk_\|API_KEY\|SECRET" cloudflare-deployment/ --exclude-dir=node_modules --exclude="*.md" --exclude="*.example"; then
+          echo "⚠️ 发现可能的硬编码密钥"
+          exit 1
+        fi

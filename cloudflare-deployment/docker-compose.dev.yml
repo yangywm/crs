@@ -1,0 +1,98 @@
+# 本地开发环境 Docker Compose
+# 用于在部署到Cloudflare之前进行本地测试
+
+version: '3.8'
+
+services:
+  # 🔄 Redis (用于模拟KV存储)
+  redis:
+    image: redis:7-alpine
+    container_name: crs-dev-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    command: redis-server --save 60 1 --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 🗄️ SQLite (用于模拟D1数据库)
+  sqlite-web:
+    image: coleifer/sqlite-web
+    container_name: crs-dev-sqlite
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./dev-data:/data
+    environment:
+      - SQLITE_DATABASE=/data/crs.db
+    depends_on:
+      - redis
+
+  # 🚀 Workers开发服务器
+  workers-dev:
+    build:
+      context: ./workers
+      dockerfile: Dockerfile.dev
+    container_name: crs-dev-workers
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - ./workers:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_PATH=/app/dev-data/crs.db
+    depends_on:
+      - redis
+    command: npm run dev
+
+  # 🎨 Pages开发服务器
+  pages-dev:
+    build:
+      context: ./pages
+      dockerfile: Dockerfile.dev
+    container_name: crs-dev-pages
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./pages:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8787
+    depends_on:
+      - workers-dev
+    command: npm run dev
+
+  # 📊 监控面板 (可选)
+  monitoring:
+    image: grafana/grafana:latest
+    container_name: crs-dev-monitoring
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+    profiles:
+      - monitoring
+
+volumes:
+  redis_dev_data:
+    driver: local
+  grafana_dev_data:
+    driver: local
+
+networks:
+  default:
+    name: crs-dev-network

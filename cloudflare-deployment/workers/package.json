@@ -1,0 +1,35 @@
+{
+  "name": "crs-workers",
+  "version": "1.0.0",
+  "description": "CRS API service for Cloudflare Workers",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:dev": "wrangler deploy --env development",
+    "deploy:prod": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "db:migrate": "wrangler d1 migrations apply crs-database",
+    "db:migrate:dev": "wrangler d1 migrations apply crs-database --local",
+    "db:create": "wrangler d1 create crs-database",
+    "kv:create": "npm run kv:create:cache && npm run kv:create:sessions",
+    "kv:create:cache": "wrangler kv:namespace create \"CRS_CACHE\"",
+    "kv:create:sessions": "wrangler kv:namespace create \"CRS_SESSIONS\"",
+    "r2:create": "wrangler r2 bucket create crs-storage"
+  },
+  "dependencies": {
+    "hono": "^4.0.0",
+    "@hono/node-server": "^1.8.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
